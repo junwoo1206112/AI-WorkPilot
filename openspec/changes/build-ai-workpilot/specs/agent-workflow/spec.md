@@ -3,7 +3,7 @@
 ## Requirements
 
 ### Requirement: Deterministic planning
-The system SHALL convert supported Korean requests into a plan containing `goal`, `steps`, `tool`, `inputs`, `risk`, `requiresApproval`, and `expectedOutput`.
+The system SHALL convert supported Korean requests into a plan containing `goal`, `steps`, `tool`, `inputs`, `risk`, `requiresApproval`, and `expectedOutput`. Plans are immutable; a user creates a new run rather than mutating an approved plan.
 
 #### Scenario: Repeatable demo
 - GIVEN the same normalized request
@@ -17,6 +17,11 @@ The system SHALL reject execution of a risky step unless the current plan versio
 - GIVEN an awaiting-approval run
 - WHEN execution is requested
 - THEN the executor returns a blocked result and records no success event
+
+#### Scenario: Concurrent execute attempt
+- GIVEN an approved run
+- WHEN two execution requests observe the same state concurrently
+- THEN exactly one state transition succeeds and the other receives a conflict
 
 ### Requirement: Honest simulation
 The system SHALL label every run and tool event as simulated and make no external business-tool request.
@@ -34,4 +39,3 @@ The system SHALL display structured events and support a deterministic failure s
 - Another session cannot retrieve the run.
 - Keyboard and 360px layouts retain the complete core flow.
 - Lint, build, automated tests, and semantic review pass.
-
