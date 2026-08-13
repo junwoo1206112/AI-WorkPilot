@@ -1,0 +1,76 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { generatePlan, type Plan } from "./planner";
+
+type RunState = "draft" | "awaiting_approval" | "approved" | "running" | "completed" | "failed" | "rejected";
+type Run = { id: string; request: string; plan: Plan; state: RunState; createdAt: string; events: { time: string; label: string; detail: string; tone?: string }[]; simulated: true; attempt: number };
+const examples = ["회의록을 분석해서 액션 아이템을 만들고 후속 일정을 등록해줘", "AI 개발자 채용공고를 분석하고 지원서 초안을 준비해줘", "배포 오류를 진단하고 복구 결과를 팀에 알려줘"];
+
+function token() {
+  const key = "workpilot-session";
+  let value = localStorage.getItem(key);
+  if (!value) { value = crypto.randomUUID(); localStorage.setItem(key, value); }
+  return value;
+}
+
+export function WorkPilot() {
+  const [request, setRequest] = useState(examples[0]);
+  const [run, setRun] = useState<Run | null>(null);
+  const [history, setHistory] = useState<Run[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("요청을 입력하면 실행 전 검토 가능한 계획을 만듭니다.");
+
+  async function api(method: string, body?: unknown) {
+    const response = await fetch("/api/runs", { method, headers: { "content-type": "application/json", "x-workpilot-session": token() }, body: body ? JSON.stringify(body) : undefined });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "요청 처리에 실패했습니다.");
+    return data;
+  }
+  async function refresh() { try { const data = await api("GET"); setHistory(data.runs); } catch { setNotice("로컬 이력 저장소를 준비하고 있습니다."); } }
+  useEffect(() => {
+    const controller = new AbortController();
+    const sessionId = token();
+    fetch("/api/runs", { headers: { "x-workpilot-session": sessionId }, signal: controller.signal })
+      .then(response => response.ok ? response.json() : Promise.reject(new Error("history unavailable")))
+      .then(data => setHistory(data.runs))
+      .catch(error => { if (error.name !== "AbortError") setNotice("로컬 이력 저장소를 준비하고 있습니다."); });
+    return () => controller.abort();
+  }, []);
+  async function plan() {
+    if (!request.trim()) { setNotice("구체적인 업무 요청을 입력해주세요."); return; }
+    setBusy(true);
+    try { const data = await api("POST", { request, plan: generatePlan(request) }); setRun(data.run); setNotice("계획 생성 완료. 위험 작업은 승인 전 실행되지 않습니다."); await refresh(); }
+    catch (error) { setNotice(error instanceof Error ? error.message : "오류가 발생했습니다."); }
+    finally { setBusy(false); }
+  }
+  async function action(kind: "approve" | "reject" | "execute" | "retry") {
+    if (!run) return; setBusy(true);
+    try { const data = await api("PATCH", { id: run.id, action: kind }); setRun(data.run); setNotice(data.message); await refresh(); }
+    catch (error) { setNotice(error instanceof Error ? error.message : "상태 변경 실패"); }
+    finally { setBusy(false); }
+  }
+  const progress = useMemo(() => run?.state === "completed" ? 100 : run?.state === "failed" ? 72 : run?.state === "approved" ? 52 : run ? 28 : 8, [run]);
+
+  return <main className="shell">
+    <aside className="sidebar">
+      <div className="brand"><span className="brandmark">W</span><span>WORKPILOT<small>AGENT CONSOLE</small></span></div>
+      <nav aria-label="주 메뉴"><a className="active" href="#workspace">⌁ 워크스페이스</a><a href="#architecture">◇ 설계 원칙</a><a href="#history">↺ 실행 이력</a></nav>
+      <div className="side-note"><span className="pulse"/>DEMO ENGINE ONLINE<small>실제 외부 작업 없음</small></div>
+    </aside>
+    <section className="content" id="workspace">
+      <header><div><p className="eyebrow">HUMAN-IN-THE-LOOP WORKFLOW</p><h1>일을 맡기기 전에,<br/><em>실행 과정을 설계합니다.</em></h1><p className="lede">자연어 요청을 계획으로 바꾸고, 위험한 행동은 사람의 승인 뒤에만 실행하는 업무 에이전트 포트폴리오입니다.</p></div><span className="demo-badge">● LOCAL DETERMINISTIC DEMO</span></header>
+      <section className="composer" aria-labelledby="request-title"><div className="section-label"><span>01</span><h2 id="request-title">업무 요청</h2></div><textarea value={request} maxLength={2000} onChange={e=>setRequest(e.target.value)} aria-describedby="privacy-note"/><div className="composer-foot"><p id="privacy-note">민감정보는 입력하지 마세요 · {request.length}/2,000</p><button onClick={plan} disabled={busy}>{busy ? "처리 중…" : "계획 생성 →"}</button></div><div className="chips">{examples.map((x,i)=><button key={x} onClick={()=>setRequest(x)}>예시 {i+1}</button>)}</div></section>
+      <div className="status" aria-live="polite"><span>STATUS</span>{notice}</div>
+      <section className="run-grid">
+        <article className="plan-card"><div className="section-label"><span>02</span><h2>실행 계획</h2>{run && <b className={`state ${run.state}`}>{run.state.replaceAll("_", " ")}</b>}</div>
+          {!run ? <div className="empty"><strong>계획이 여기에 나타납니다</strong><p>요청의 의도, 도구, 위험도를 단계별로 확인할 수 있습니다.</p></div> : <><div className="goal"><small>AGENT INTERPRETATION</small><strong>{run.plan.summary}</strong><p>{run.plan.goal}</p></div><ol className="steps">{run.plan.steps.map((step,i)=><li key={step.id}><span className="step-no">0{i+1}</span><div><strong>{step.title}</strong><p>{step.description}</p><code>{step.tool}</code></div><span className={`risk ${step.risk}`}>{step.risk}{step.requiresApproval && " · 승인"}</span></li>)}</ol><div className="actions">{run.state === "awaiting_approval" && <><button className="primary" onClick={()=>action("approve")} disabled={busy}>계획 승인</button><button onClick={()=>action("reject")} disabled={busy}>거절</button></>}{run.state === "approved" && <button className="primary" onClick={()=>action("execute")} disabled={busy}>시뮬레이션 실행</button>}{run.state === "failed" && <button className="primary" onClick={()=>action("retry")} disabled={busy}>실패 단계 재시도</button>}</div></>}
+        </article>
+        <article className="trace-card"><div className="section-label"><span>03</span><h2>실행 추적</h2></div><div className="meter"><div style={{width:`${progress}%`}}/></div>{!run ? <div className="empty compact"><strong>감사 로그 대기 중</strong></div> : <div className="timeline">{run.events.map((event,i)=><div className="event" key={`${event.time}-${i}`}><time>{event.time}</time><span className={event.tone || ""}/><div><strong>{event.label}</strong><p>{event.detail}</p></div></div>)}</div>}<div className="guardrail"><span>◆</span><div><strong>APPROVAL GUARDRAIL</strong><p>고위험 단계는 서버 상태가 approved가 아니면 executor가 거부합니다.</p></div></div></article>
+      </section>
+      <section className="architecture" id="architecture"><div className="section-label"><span>04</span><h2>교체 가능한 에이전트 구조</h2></div><div className="arch-flow"><b>Planner<small>의도 → 계획</small></b><i>→</i><b>Policy<small>위험 → 승인</small></b><i>→</i><b>Executor<small>도구 → 결과</small></b><i>→</i><b>History<small>이벤트 → 회고</small></b></div></section>
+      <section className="history" id="history"><div className="section-label"><span>05</span><h2>내 데모 실행 이력</h2><small>세션별 격리 · D1 저장</small></div><div className="history-list">{history.length === 0 ? <p>아직 저장된 실행이 없습니다.</p> : history.map(item=><button key={item.id} onClick={()=>setRun(item)}><span className={`dot ${item.state}`}/><div><strong>{item.plan.summary}</strong><small>{new Date(item.createdAt).toLocaleString("ko-KR")} · 시도 {item.attempt}</small></div><b>{item.state}</b></button>)}</div></section>
+      <footer><span>AI WORKPILOT / PORTFOLIO BUILD 01</span><span>OPEN SPEC · SAFE BY DESIGN · SIMULATED</span></footer>
+    </section>
+  </main>;
+}

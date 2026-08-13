@@ -1,0 +1,2 @@
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+export const workpilotRuns = sqliteTable("workpilot_runs", { id: text("id").primaryKey(), owner: text("owner").notNull(), request: text("request").notNull(), planJson: text("plan_json").notNull(), state: text("state").notNull(), eventsJson: text("events_json").notNull(), attempt: integer("attempt").notNull().default(0), createdAt: text("created_at").notNull(), updatedAt: text("updated_at").notNull() });
