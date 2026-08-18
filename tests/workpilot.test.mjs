@@ -41,6 +41,9 @@ test("server is authoritative for plans and owner-scoped history", async () => {
   assert.match(route, /nextState\(run\.state, action\)/);
   assert.match(route, /AND state = \?/);
   assert.match(route, /transition\.meta\?\.changes/);
+  assert.match(route, /new RequestError\("유효한 데모 세션이 필요합니다\.", 401\)/);
+  assert.match(route, /new RequestError\("올바른 JSON 본문이 필요합니다\.", 400\)/);
+  assert.match(route, /지원하지 않는 작업입니다/);
 });
 
 test("portfolio artifacts describe verification and honest demo scope", async () => {
