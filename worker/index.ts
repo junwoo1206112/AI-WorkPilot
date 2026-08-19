@@ -27,6 +27,7 @@ interface ExecutionContext {
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
 
     // Some browsers request this conventional URL even when the document
     // explicitly declares the SVG favicon. Serve the declared asset instead
@@ -34,7 +35,6 @@ const worker = {
     if (url.pathname === "/favicon.ico") {
       return env.ASSETS.fetch(new Request(new URL("/favicon.svg", request.url)));
     }
-    const url = new URL(request.url);
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
