@@ -27,6 +27,13 @@ interface ExecutionContext {
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+
+    // Some browsers request this conventional URL even when the document
+    // explicitly declares the SVG favicon. Serve the declared asset instead
+    // of adding a persistent 404 to production logs.
+    if (url.pathname === "/favicon.ico") {
+      return env.ASSETS.fetch(new Request(new URL("/favicon.svg", request.url)));
+    }
     const url = new URL(request.url);
 
     if (url.pathname === "/_vinext/image") {
