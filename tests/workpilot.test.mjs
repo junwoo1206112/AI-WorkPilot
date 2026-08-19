@@ -44,6 +44,10 @@ test("server is authoritative for plans and owner-scoped history", async () => {
   assert.match(route, /new RequestError\("유효한 데모 세션이 필요합니다\.", 401\)/);
   assert.match(route, /new RequestError\("올바른 JSON 본문이 필요합니다\.", 400\)/);
   assert.match(route, /지원하지 않는 작업입니다/);
+  assert.match(route, /maximumJsonBodyBytes = 16 \* 1024/);
+  assert.match(route, /new RequestError\("요청 본문이 너무 큽니다\.", 413\)/);
+  assert.match(route, /export async function DELETE\(request: Request\)/);
+  assert.match(route, /DELETE FROM workpilot_runs WHERE owner = \?/);
 });
 
 test("portfolio artifacts describe verification and honest demo scope", async () => {

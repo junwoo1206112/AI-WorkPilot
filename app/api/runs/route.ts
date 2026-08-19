@@ -6,6 +6,7 @@ type Plan = ReturnType<typeof generatePlan>;
 type StoredRun = { id: string; owner: string; request: string; plan: Plan; state: string; events: Event[]; attempt: number; createdAt: string; updatedAt: string; simulated: true };
 const schema = `CREATE TABLE IF NOT EXISTS workpilot_runs (id TEXT PRIMARY KEY, owner TEXT NOT NULL, request TEXT NOT NULL, plan_json TEXT NOT NULL, state TEXT NOT NULL, events_json TEXT NOT NULL, attempt INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`;
 const ownerIndex = `CREATE INDEX IF NOT EXISTS workpilot_runs_owner_idx ON workpilot_runs (owner, created_at DESC)`;
+const maximumJsonBodyBytes = 16 * 1024;
 const actions = new Set(["approve", "reject", "execute", "retry", "complete", "cancel"]);
 
 class RequestError extends Error {
@@ -19,7 +20,13 @@ function errorResponse(error: unknown, fallback: string) {
 
 async function jsonBody(request: Request): Promise<Record<string, unknown>> {
   try {
-    const body = await request.json();
+    const declaredSize = Number(request.headers.get("content-length") ?? 0);
+    if (declaredSize > maximumJsonBodyBytes) throw new RequestError("요청 본문이 너무 큽니다.", 413);
+    const text = await request.text();
+    if (new TextEncoder().encode(text).byteLength > maximumJsonBodyBytes) {
+      throw new RequestError("요청 본문이 너무 큽니다.", 413);
+    }
+    const body = JSON.parse(text);
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new RequestError("JSON 객체 본문이 필요합니다.", 400);
     return body as Record<string, unknown>;
   } catch (error) {
@@ -107,4 +114,12 @@ export async function PATCH(request: Request) {
     if ((transition.meta?.changes ?? 0) !== 1) return Response.json({ error: "다른 요청이 먼저 실행 상태를 변경했습니다. 최신 이력을 확인해주세요." }, { status: 409 });
     return Response.json({ run: await getOwned(database, id, owner), message });
   } catch (error) { return errorResponse(error, "상태 변경 실패"); }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const owner = session(request); const database = await db();
+    const result = await database.prepare("DELETE FROM workpilot_runs WHERE owner = ?").bind(owner).run();
+    return Response.json({ deleted: result.meta?.changes ?? 0 });
+  } catch (error) { return errorResponse(error, "이력 삭제 실패"); }
 }
