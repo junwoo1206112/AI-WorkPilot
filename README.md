@@ -35,10 +35,10 @@ Korean request
   → DeterministicPlanner (LLM adapter 교체 지점)
   → ApprovalPolicy (risk taxonomy + state invariant)
   → ToolExecutor (validate / preview / execute)
-  → HistoryRepository (D1, owner-scoped append events)
+  → HistoryRepository (D1, owner-scoped event timeline)
 ```
 
-상태는 `draft → awaiting_approval → approved → running → completed | failed | cancelled`를 따릅니다. 실제 연동에서는 Planner를 LLM provider로, `*.mock`을 메일·캘린더 SDK 구현으로 바꾸되 Policy와 History는 그대로 유지합니다.
+상태는 `awaiting_approval → approved → running → completed | failed | cancelled`를 따릅니다. 실제 연동에서는 Planner를 LLM provider로, `*.mock`을 메일·캘린더 SDK 구현으로 바꾸되 Policy와 History는 그대로 유지합니다.
 
 ## 실행
 
@@ -55,9 +55,9 @@ D1 스키마는 첫 API 요청에서 멱등 초기화되며, Drizzle 선언은 `
 
 ## 안전과 한계
 
-- 입력은 2,000자로 제한하며 비밀번호·주민번호 등 민감정보를 넣지 않도록 안내합니다.
+- 입력은 2,000자로 제한하며 비밀번호·주민번호·이메일·전화번호 형태의 민감정보를 계획으로 저장하지 않습니다.
 - 현재는 포트폴리오 데모로 실제 외부 업무 API 네트워크 호출이 없습니다.
-- 익명 세션 토큰은 브라우저 로컬에 저장되는 **데모용 격리 수단**이며 사용자 인증이나 보안 경계가 아닙니다.
+- 익명 세션 토큰은 브라우저 로컬에 저장되는 **데모용 격리 수단**이며 사용자 인증이나 보안 경계가 아닙니다. 화면의 이력 전체 삭제로 해당 세션의 기록을 제거할 수 있습니다.
 - 실서비스 전환 시 HttpOnly 인증 세션, 토큰 회전·만료, rate limit, 데이터 삭제 정책, adapter별 secret 관리가 필요합니다.
 
 명세와 의사결정은 `openspec/changes/build-ai-workpilot/`, 인터뷰 기록은 `docs/ouroboros-interview.md`에서 확인할 수 있습니다.

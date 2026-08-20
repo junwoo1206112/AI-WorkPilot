@@ -13,7 +13,7 @@ export function validateRequest(value) {
   const request = typeof value === "string" ? value.trim() : "";
   if (!request) return { ok: false, reason: "구체적인 업무 요청을 입력해주세요." };
   if (request.length > maximumRequestLength) return { ok: false, reason: `요청은 ${maximumRequestLength.toLocaleString("ko-KR")}자 이하여야 합니다.` };
-  if (/ignore\s+(all|previous)|system\s+prompt|지시를\s*무시|비밀번호|주민등록번호/i.test(request)) {
+  if (/ignore\s+(all|previous)|system\s+prompt|지시를\s*무시|비밀번호|주민등록번호|\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b|(?:^|\D)(?:01[016789])[-. ]?\d{3,4}[-. ]?\d{4}(?:$|\D)/i.test(request)) {
     return { ok: false, reason: "민감정보 또는 지시 우회 문구는 실행 계획으로 처리하지 않습니다. 업무 목적만 다시 작성해주세요." };
   }
   return { ok: true, request };
